@@ -31,7 +31,7 @@ class SocialMediaPostError(TypedDict):
     error_code: str
 
 # OpenAI Configuration
-OPENAI_MODEL = "gpt-4o-mini"  # Using the more cost-effective model
+OPENAI_MODEL = "gpt-5-nano"  # Using the more cost-effective model
 MAX_TOKENS = 500
 TEMPERATURE = 0.7  # Balance between creativity and consistency
 
