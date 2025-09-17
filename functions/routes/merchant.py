@@ -30,6 +30,7 @@ from constants.merchant import (
     MultipleMerchantsRequest,
     StoreMerchantsResponse,
     GetMerchantsResponse,
+    PaginationInfo,
 )
 
 from utils import get_cors_headers, is_origin_allowed, email_to_short_id, normalize_email
@@ -164,11 +165,14 @@ def process_merchants_for_storage(
 
 def get_merchants_from_collection(
     collection_name: str,
-    identifiers_param: Optional[str] = None
+    identifiers_param: Optional[str] = None,
+    limit: Optional[int] = None,
+    cursor: Optional[str] = None
 ) -> GetMerchantsResponse:
     """
     Retrieve merchants from the specified collection.
     Optionally filter by document identifiers.
+    Supports pagination with limit and cursor.
     """
     # Get Firestore client
     db: firestore.Client = firestore.client()
@@ -204,9 +208,29 @@ def get_merchants_from_collection(
                 'filtered': True
             }
     else:
-        # No filter - retrieve all merchants from collection
+        # No filter - retrieve merchants from collection with pagination
         merchants_ref: firestore.CollectionReference = db.collection(collection_name)
-        docs: firestore.Generator = merchants_ref.stream()
+        
+        # Order by datetime (newest first) for consistent pagination
+        query = merchants_ref.order_by('datetime', direction=firestore.Query.DESCENDING)
+        
+        # Apply cursor if provided
+        if cursor:
+            try:
+                # Get the document to start after
+                cursor_doc = db.collection(collection_name).document(cursor).get()
+                if cursor_doc.exists:
+                    query = query.start_after(cursor_doc)
+            except Exception:
+                # If cursor document doesn't exist or is invalid, ignore it
+                pass
+        
+        # Apply limit if provided
+        if limit and limit > 0:
+            query = query.limit(limit)
+        
+        # Execute query
+        docs = query.stream()
         
         for doc in docs:
             merchant_data_dict = doc.to_dict()
@@ -219,11 +243,27 @@ def get_merchants_from_collection(
                 merchant_response = merchant_data_dict  # type: ignore
                 merchants.append(merchant_response)
     
+    # Prepare pagination info
+    has_more = False
+    next_cursor = None
+    
+    # If we have a limit and got exactly that many results, there might be more
+    if limit and len(merchants) == limit:
+        has_more = True
+        # The next cursor is the ID of the last document
+        if merchants:
+            next_cursor = merchants[-1]['id']
+    
     response: GetMerchantsResponse = {
         'success': True,
         'merchants': merchants,
         'count': len(merchants),
-        'filtered': bool(identifiers_param)
+        'filtered': bool(identifiers_param),
+        'pagination': {
+            'has_more': has_more,
+            'next_cursor': next_cursor,
+            'limit': limit
+        } if not identifiers_param else None  # Only include pagination for non-filtered results
     }
     
     return response
@@ -314,7 +354,10 @@ def store_merchant(req: https_fn.Request) -> https_fn.Response:
 def get_merchants(req: https_fn.Request) -> https_fn.Response:
     """
     Cloud Function to retrieve merchant information from Firestore.
-    Optional query parameter: identifiers (comma-separated list of document IDs)
+    Query parameters:
+    - identifiers: comma-separated list of document IDs (optional)
+    - limit: maximum number of results to return (optional, default: no limit)
+    - cursor: document ID to start after for pagination (optional)
     """
     # Handle common request validation
     validation_response = handle_common_request_validation(req, 'GET')
@@ -326,13 +369,40 @@ def get_merchants(req: https_fn.Request) -> https_fn.Response:
     headers: CORSHeaders = get_cors_headers(request_origin)
     
     try:
-        # Get identifiers filter from query parameters
+        # Get query parameters
         identifiers_param: Optional[str] = req.args.get('identifiers')
+        limit_param: Optional[str] = req.args.get('limit')
+        cursor_param: Optional[str] = req.args.get('cursor')
         
-        # Use helper function to get merchants
+        # Parse and validate limit parameter
+        limit: Optional[int] = None
+        if limit_param:
+            try:
+                limit = int(limit_param)
+                if limit <= 0:
+                    return https_fn.Response(
+                        json.dumps({'error': 'limit must be a positive integer'}),
+                        status=HTTP_BAD_REQUEST,
+                        headers=headers,
+                        mimetype='application/json'
+                    )
+                # Set reasonable maximum limit to prevent abuse
+                if limit > 100:
+                    limit = 100
+            except ValueError:
+                return https_fn.Response(
+                    json.dumps({'error': 'limit must be a valid integer'}),
+                    status=HTTP_BAD_REQUEST,
+                    headers=headers,
+                    mimetype='application/json'
+                )
+        
+        # Use helper function to get merchants with pagination
         response_data: GetMerchantsResponse = get_merchants_from_collection(
             MERCHANTS_COLLECTION, 
-            identifiers_param
+            identifiers_param,
+            limit,
+            cursor_param
         )
         
         if not response_data['success']:
@@ -363,7 +433,10 @@ def get_merchants(req: https_fn.Request) -> https_fn.Response:
 def get_pending_merchants(req: https_fn.Request) -> https_fn.Response:
     """
     Cloud Function to retrieve pending merchant information from Firestore.
-    Optional query parameter: identifiers (comma-separated list of document IDs)
+    Query parameters:
+    - identifiers: comma-separated list of document IDs (optional)
+    - limit: maximum number of results to return (optional, default: no limit)
+    - cursor: document ID to start after for pagination (optional)
     """
     # Handle common request validation
     validation_response = handle_common_request_validation(req, 'GET')
@@ -375,13 +448,40 @@ def get_pending_merchants(req: https_fn.Request) -> https_fn.Response:
     headers: CORSHeaders = get_cors_headers(request_origin)
     
     try:
-        # Get identifiers filter from query parameters
+        # Get query parameters
         identifiers_param: Optional[str] = req.args.get('identifiers')
+        limit_param: Optional[str] = req.args.get('limit')
+        cursor_param: Optional[str] = req.args.get('cursor')
         
-        # Use helper function to get pending merchants
+        # Parse and validate limit parameter
+        limit: Optional[int] = None
+        if limit_param:
+            try:
+                limit = int(limit_param)
+                if limit <= 0:
+                    return https_fn.Response(
+                        json.dumps({'error': 'limit must be a positive integer'}),
+                        status=HTTP_BAD_REQUEST,
+                        headers=headers,
+                        mimetype='application/json'
+                    )
+                # Set reasonable maximum limit to prevent abuse
+                if limit > 100:
+                    limit = 100
+            except ValueError:
+                return https_fn.Response(
+                    json.dumps({'error': 'limit must be a valid integer'}),
+                    status=HTTP_BAD_REQUEST,
+                    headers=headers,
+                    mimetype='application/json'
+                )
+        
+        # Use helper function to get pending merchants with pagination
         response_data: GetMerchantsResponse = get_merchants_from_collection(
             PENDING_MERCHANTS_COLLECTION, 
-            identifiers_param
+            identifiers_param,
+            limit,
+            cursor_param
         )
         
         if not response_data['success']:

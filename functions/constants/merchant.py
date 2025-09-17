@@ -63,9 +63,16 @@ class StoreMerchantsResponse(TypedDict):
     message: str
     errors: Optional[List[MerchantError]]
 
+class PaginationInfo(TypedDict):
+    """Pagination information for paginated responses"""
+    has_more: bool
+    next_cursor: Optional[str]
+    limit: Optional[int]
+
 class GetMerchantsResponse(TypedDict):
     """Response from get_merchants function"""
     success: bool
     merchants: List[MerchantResponse]
     count: int
     filtered: bool
+    pagination: Optional[PaginationInfo]
