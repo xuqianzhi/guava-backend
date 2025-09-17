@@ -13,6 +13,7 @@ class Merchant(TypedDict):
     address: str
     description: str
     industry: str
+    phone: Optional[str]  # Optional phone number field
     datetime: datetime
 
 class MerchantInput(TypedDict):
@@ -22,6 +23,7 @@ class MerchantInput(TypedDict):
     address: str
     description: str
     industry: str
+    phone: Optional[str]  # Optional phone number field
 
 class MerchantResponse(TypedDict):
     """Merchant data returned in API responses"""
@@ -30,6 +32,7 @@ class MerchantResponse(TypedDict):
     address: str
     description: str
     industry: str
+    phone: Optional[str]  # Optional phone number field
     datetime: str  # ISO format string for JSON serialization
     id: str  # Document ID
 

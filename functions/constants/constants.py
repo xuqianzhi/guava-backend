@@ -16,11 +16,13 @@ class CORSHeaders(TypedDict):
 # Collection Names
 LANDING_SITE_CONTACT_FORM_LEAD_COLLECTION: str = 'landing-site-contact-form-lead'
 MERCHANTS_COLLECTION: str = 'merchants'
+PENDING_MERCHANTS_COLLECTION: str = 'pending-merchants'
 
 # Collection to required fields mapping
 COLLECTION_REQUIRED_FIELDS: dict[str, List[str]] = {
     LANDING_SITE_CONTACT_FORM_LEAD_COLLECTION: ['name', 'email', 'message'],  # phone, company, industry are now optional
-    MERCHANTS_COLLECTION: ['name', 'email', 'address', 'description', 'industry']
+    MERCHANTS_COLLECTION: ['name', 'email', 'address', 'description', 'industry'],
+    PENDING_MERCHANTS_COLLECTION: ['name', 'email', 'address', 'description', 'industry']
 }
 
 # Firebase configuration

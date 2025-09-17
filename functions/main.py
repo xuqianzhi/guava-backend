@@ -9,7 +9,7 @@ from constants.constants import MAX_INSTANCES
 
 # Import routes
 from routes.landing_site_contact_form_lead import store_landing_site_contact_form_lead, get_landing_site_contact_form_lead
-from routes.merchant import store_merchant, get_merchants
+from routes.merchant import store_merchant, get_merchants, store_pending_merchant, get_pending_merchants, approve_pending_merchant, deny_pending_merchant
 from routes.openai import generate_social_media_post, generate_chinese_social_media_post
 
 # For cost control, you can set the maximum number of containers that can be
